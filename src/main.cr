@@ -5,8 +5,25 @@ require "json"
 class Travel
   include JSON::Serializable
   property travel_stops : Array(Int32)
-
 end
+
+class RandM
+  include JSON::Serializable
+
+  property id : Int32 = 0
+  property name : String = ""
+  property type : String = ""
+  property dimension : String = ""
+end
+
+
+def fetchDataFromApi(id) : RandM
+  url = "https://rickandmortyapi.com/api/location/#{id}"
+  response = HTTP::Client.get(url)
+  response_json = JSON.parse(response.body.to_s)
+  return RandM.from_json(response_json.to_json)
+end
+
 
 post "/api/travel-plans" do |env|
   travel = Travel.from_json env.request.body.not_nil!
@@ -23,17 +40,39 @@ post "/api/travel-plans" do |env|
   { travel: travel_plan }.to_json
 end
 
-
-
-
 get "/api/travel-plans" do |env|
   travels = TravelPlans.all.where{_id > 1}
+  optimize = env.params.url["optimize"]?
+  expand = env.params.url["expand"]?
+  
+  # randm = fetchDataFromApi(id)
+  # puts randm.to_json
+
+
+
+
   env.response.puts travels.to_json
 end
 get "/api/travel-plans/:id" do |env|
   id = env.params.url["id"]?
+  optimize = env.params.url["optimize"]?
+  expand = env.params.url["expand"]?
+  
+  randm = fetchDataFromApi(id)
+  puts randm.to_json
+
   travel = TravelPlans.all.where{_id == id}
-  env.response.puts travel.to_json
+  expandedTravel = {
+    id: randm.id,
+    travel_stops:{
+      id: randm.id,
+      name: randm.name,
+      type: randm.type,
+      dimension: randm.dimension
+    }
+  }
+ 
+  env.response.puts expandedTravel.to_json
 end
 put "/api/travel-plans/:id" do |env|
   id = env.params.url["id"]?
