@@ -1,0 +1,17 @@
+default: &default
+  host: localhost
+  user: emanuel
+  password: senhakill1
+  adapter: postgres
+
+development:
+  <<: *default
+  db: challenge
+
+test:
+  <<: *default
+  db: application_database_name_test
+
+production:
+  <<: *default
+  db: application_database_name_production

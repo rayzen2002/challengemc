@@ -1,17 +1,50 @@
-require "idle-gc"
+require "kemal"
+require "../config/config"
+require "json"
 
-class MyApp
-  def initialize
-    IdleGC.start # Run garbage collection while idle
-  end
+class Travel
+  include JSON::Serializable
+  property travel_stops : Array(Int32)
 
-  def main
-    # Your code here.
-    10.times do |n|
-      puts "(#{n}) Hello world! The current time is #{Time.utc.to_rfc3339(fraction_digits: 9)}"
-      sleep(1.seconds)
-    end
-  end
 end
 
-MyApp.new.main
+post "/api/travel-plans" do |env|
+  travel = Travel.from_json env.request.body.not_nil!
+
+  json_data = (travel.travel_stops).to_json
+  puts travel.travel_stops
+   travel_plan = TravelPlans.new({
+    :travel_stops => json_data
+  })
+ 
+  travel_plan.save
+
+  
+  { travel: travel_plan }.to_json
+end
+
+
+
+
+get "/api/travel-plans" do |env|
+  travels = TravelPlans.all.where{_id > 1}
+  env.response.puts travels.to_json
+end
+get "/api/travel-plans/:id" do |env|
+  id = env.params.url["id"]?
+  travel = TravelPlans.all.where{_id == id}
+  env.response.puts travel.to_json
+end
+put "/api/travel-plans/:id" do |env|
+  id = env.params.url["id"]?
+  updatedTravel = Travel.from_json env.request.body.not_nil!
+  updatedTravelJson = (updatedTravel.travel_stops).to_json
+  travel = TravelPlans.all.where{_id == id}.update{ { :travel_stops => updatedTravelJson } }
+  travelUpdated = TravelPlans.all.where{_id == id}
+  env.response.puts travelUpdated.to_json
+end
+delete "/api/travel-plans/:id" do |env|
+  id = env.params.url["id"]?
+  travelToDelete = TravelPlans.delete(id)
+end
+Kemal.run
