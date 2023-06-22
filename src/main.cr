@@ -17,6 +17,12 @@ class RandM
   property dimension : String = ""
 end
 
+class AllExpandedTravels
+  include JSON::Serializable
+  property id : Int32
+  property travel_stops : Array(RandM)
+end
+
 def fetchDataFromApi(id) : Array(RandM)
   counter = 0
   results = [] of RandM
@@ -37,19 +43,40 @@ def fetchDataFromApi(id) : Array(RandM)
   end
   
    return results
-  # return travel.to_json(only: %w[travel_stops])
 end
-def fetchMultipleDataFromApi(ids : Array(Int32)) : Array(RandM)
-  results = [] of RandM
-
+def fetchMultipleDataFromApi(ids : Array(Int32)) : Array(Array(RandM))
+  
+  allResults = Array(Array(RandM)).new
+  counter = 0
+  counterW = 0
+  # [1,2,3,4,5,6,7,8,9]
   ids.each do |id|
-    url = "https://rickandmortyapi.com/api/location/#{id}"
-    response = HTTP::Client.get(url)
-    response_json = JSON.parse(response.body.to_s)
-    results << RandM.from_json(response_json.to_json)
+    results = Array(RandM).new
+    travel = TravelPlans.all.where{_id == id}
+    travelStopsString = travel.to_json(only: %w[travel_stops])
+    numbers = travelStopsString.scan(/\d+/).map { |match| match.to_a }
+    counterW = 0
+    # url = "https://rickandmortyapi.com/api/location/#{id}"
+    # response = HTTP::Client.get(url)
+    # response_json = JSON.parse(response.body.to_s)
+    # results << RandM.from_json(response_json.to_json)
+    while counterW < numbers.size
+      url = "https://rickandmortyapi.com/api/location/#{numbers[counterW][0]}"
+    
+      response = HTTP::Client.get(url)
+      response_json = JSON.parse(response.body.to_s)
+      results << RandM.from_json(response_json.to_json)
+      counterW += 1
+    end
+    allResults << results
   end
-
-  results
+  # while counter < allResults.size
+  #   expandedTravels = {
+  #     id: ids[counter],
+  #     travel_stops: allResults
+  #   }
+  # end
+  allResults
 end
 
 post "/api/travel-plans" do |env|
@@ -71,10 +98,12 @@ end
 get "/api/travel-plans" do |env|
   ids = [] of Int32
   counter = 0
-  travels = TravelPlans.all.where{_id > 1}
+  countW = 0
+  countK = 0
+  travels = TravelPlans.all.where{_id > 0}
   expand   = env.params.query["expand"]? == "true"
   optimize = env.params.query["optimize"]? == "true"
-  
+  # expandedTravels = AllExpandedTravels.from_json
   lastTravel = travels.last
   
   if expand
