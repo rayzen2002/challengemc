@@ -17,11 +17,27 @@ class RandM
   property dimension : String = ""
 end
 
-def fetchDataFromApi(id) : RandM
-  url = "https://rickandmortyapi.com/api/location/#{id}"
-  response = HTTP::Client.get(url)
-  response_json = JSON.parse(response.body.to_s)
-  return RandM.from_json(response_json.to_json)
+def fetchDataFromApi(id) : Array(RandM)
+  counter = 0
+  results = [] of RandM
+  travel = TravelPlans.all.where{_id == id}
+  puts typeof(travel)
+  puts travel.to_json
+  travelStopsString = travel.to_json(only: %w[travel_stops])
+  puts travelStopsString
+  numbers = travelStopsString.scan(/\d+/).map { |match| match.to_a }
+  puts numbers
+  while counter < numbers.size
+    url = "https://rickandmortyapi.com/api/location/#{numbers[counter][0]}"
+    puts url
+    response = HTTP::Client.get(url)
+    response_json = JSON.parse(response.body.to_s)
+    results << RandM.from_json(response_json.to_json)
+    counter += 1
+  end
+  
+   return results
+  # return travel.to_json(only: %w[travel_stops])
 end
 def fetchMultipleDataFromApi(ids : Array(Int32)) : Array(RandM)
   results = [] of RandM
@@ -80,32 +96,25 @@ get "/api/travel-plans" do |env|
   end
 end
 
-
-
-
 get "/api/travel-plans/:id" do |env|
-  id = env.params.url["id"]?
+  id : String = env.params.url["id"]
   optimize = env.params.url["optimize"]?
-  expand   = env.params.query["expand"]? == "true"
+  expand   = env.params.query["expand"]? 
   
   randm = fetchDataFromApi(id)
  
 
-  travel = TravelPlans.all.where{_id == id}
+  travels = TravelPlans.all.where{_id == id}
   if expand
-    expandedTravel = {
-      id: randm.id,
-      travel_stops:{
-        id: randm.id,
-        name: randm.name,
-        type: randm.type,
-        dimension: randm.dimension
-      }
-    }
+  exandedResponse = {
+    id: id.to_i,
+    travel_stops: randm
+  }
+    env.response.puts exandedResponse.to_json
+  else
+    env.response.puts travels.to_json(only: %w[id travel_stops])
+    end
   
-    env.response.puts expandedTravel.to_json
-  end
-  env.response.puts travel.to_json(only: %w[id travel_stops])
 end
 put "/api/travel-plans/:id" do |env|
   id = env.params.url["id"]?
