@@ -7,7 +7,14 @@ class Travel
   include JSON::Serializable
   property travel_stops : Array(Int32)
 end
+class TupleResponse
+  include JSON::Serializable
+  property id : Int32 
+  property travel_stops : Array(RandM)
 
+  def initialize(@id : Int32 = 0, @travel_stops : Array(RandM) = [] of RandM)
+  end
+end
 class RandM
   include JSON::Serializable
 
@@ -44,40 +51,40 @@ def fetchDataFromApi(id) : Array(RandM)
   
    return results
 end
-def fetchMultipleDataFromApi(ids : Array(Int32)) : Array(Array(RandM))
-  
+def fetchMultipleDataFromApi(ids : Array(Int32)) : Array(TupleResponse)
+ 
+  expandedTravels = Array(TupleResponse).new
   allResults = Array(Array(RandM)).new
   counter = 0
   counterW = 0
-  # [1,2,3,4,5,6,7,8,9]
+  
+
   ids.each do |id|
+    travelTuple = TupleResponse.new
     results = Array(RandM).new
     travel = TravelPlans.all.where{_id == id}
     travelStopsString = travel.to_json(only: %w[travel_stops])
     numbers = travelStopsString.scan(/\d+/).map { |match| match.to_a }
     counterW = 0
-    # url = "https://rickandmortyapi.com/api/location/#{id}"
-    # response = HTTP::Client.get(url)
-    # response_json = JSON.parse(response.body.to_s)
-    # results << RandM.from_json(response_json.to_json)
+
     while counterW < numbers.size
       url = "https://rickandmortyapi.com/api/location/#{numbers[counterW][0]}"
-    
       response = HTTP::Client.get(url)
       response_json = JSON.parse(response.body.to_s)
       results << RandM.from_json(response_json.to_json)
       counterW += 1
     end
+    travelTuple.id = id
+    travelTuple.travel_stops = results
+    expandedTravels << travelTuple
     allResults << results
+    counter += 1
   end
-  # while counter < allResults.size
-  #   expandedTravels = {
-  #     id: ids[counter],
-  #     travel_stops: allResults
-  #   }
-  # end
-  allResults
+  counter = 0
+
+  return expandedTravels
 end
+
 
 post "/api/travel-plans" do |env|
   travel = Travel.from_json env.request.body.not_nil!
