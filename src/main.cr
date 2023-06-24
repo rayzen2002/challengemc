@@ -2,32 +2,46 @@ require "kemal"
 require "../config/config"
 require "json"
 
-
 class Travel
+  count = 0
   include JSON::Serializable
   property travel_stops : Array(Int32)
 end
+
+class ResponseManipulator
+  def self.manipulate_responses(responses : Array(TupleResponse)) :  Array(JSON::Any)
+    count = 0
+    dimensions = [] of JSON::Any
+    json = responses.to_json
+    data = JSON.parse(json)
+    while count < data.size
+      countj = 0
+      while countj < data[count]["travel_stops"].size
+        aux = data[count]["travel_stops"][countj]["dimension"]
+        dimensions <<  aux unless aux.nil?
+        countj += 1
+      end
+      count += 1
+    end
+    dimensions
+  end
+end
+
 class TupleResponse
   include JSON::Serializable
   property id : Int32 
   property travel_stops : Array(RandM)
-
+  
   def initialize(@id : Int32 = 0, @travel_stops : Array(RandM) = [] of RandM)
   end
 end
+
 class RandM
   include JSON::Serializable
-
   property id : Int32 = 0
   property name : String = ""
   property type : String = ""
   property dimension : String = ""
-end
-
-class AllExpandedTravels
-  include JSON::Serializable
-  property id : Int32
-  property travel_stops : Array(RandM)
 end
 
 def fetchDataFromApi(id) : Array(RandM)
@@ -49,15 +63,15 @@ def fetchDataFromApi(id) : Array(RandM)
     counter += 1
   end
   
-   return results
+  return results
 end
+
 def fetchMultipleDataFromApi(ids : Array(Int32)) : Array(TupleResponse)
- 
   expandedTravels = Array(TupleResponse).new
   allResults = Array(Array(RandM)).new
   counter = 0
   counterW = 0
-  
+  counterK = 0
 
   ids.each do |id|
     travelTuple = TupleResponse.new
@@ -85,20 +99,17 @@ def fetchMultipleDataFromApi(ids : Array(Int32)) : Array(TupleResponse)
   return expandedTravels
 end
 
-
 post "/api/travel-plans" do |env|
   travel = Travel.from_json env.request.body.not_nil!
 
   json_data = (travel.travel_stops).to_json
   puts travel.travel_stops
-   travel_plan = TravelPlans.new({
+  travel_plan = TravelPlans.new({
     :travel_stops => json_data
   })
  
   travel_plan.save
-
   
-  # { travel: travel_plan }.to_json
   env.response.puts travel_plan.to_json(only: %w[id travel_stops])
 end
 
@@ -110,7 +121,6 @@ get "/api/travel-plans" do |env|
   travels = TravelPlans.all.where{_id > 0}
   expand   = env.params.query["expand"]? == "true"
   optimize = env.params.query["optimize"]? == "true"
-  # expandedTravels = AllExpandedTravels.from_json
   lastTravel = travels.last
   
   if expand
@@ -123,12 +133,17 @@ get "/api/travel-plans" do |env|
         end
       end
       randm = fetchMultipleDataFromApi(ids)
-      env.response.puts randm.to_json
+      if optimize 
+        xd = ResponseManipulator.manipulate_responses(randm)
+        env.response.puts xd.to_json
+      else
+        env.response.puts randm.to_json
+      end
     else
       env.response.puts "{}" # Return empty JSON object if lastTravel is Nil
     end
   else
-  env.response.puts travels.to_json(only: %w[id travel_stops])
+    env.response.puts travels.to_json(only: %w[id travel_stops])
   end
 end
 
@@ -138,20 +153,19 @@ get "/api/travel-plans/:id" do |env|
   expand   = env.params.query["expand"]? 
   
   randm = fetchDataFromApi(id)
- 
-
   travels = TravelPlans.all.where{_id == id}
+  
   if expand
-  exandedResponse = {
-    id: id.to_i,
-    travel_stops: randm
-  }
+    exandedResponse = {
+      id: id.to_i,
+      travel_stops: randm
+    }
     env.response.puts exandedResponse.to_json
   else
     env.response.puts travels.to_json(only: %w[id travel_stops])
-    end
-  
+  end
 end
+
 put "/api/travel-plans/:id" do |env|
   id = env.params.url["id"]?
   updatedTravel = Travel.from_json env.request.body.not_nil!
@@ -160,8 +174,10 @@ put "/api/travel-plans/:id" do |env|
   travelUpdated = TravelPlans.all.where{_id == id}
   env.response.puts travelUpdated.to_json
 end
+
 delete "/api/travel-plans/:id" do |env|
   id = env.params.url["id"]?
   travelToDelete = TravelPlans.delete(id)
 end
+
 Kemal.run
